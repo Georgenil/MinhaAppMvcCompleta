@@ -9,6 +9,7 @@ using DevIO2.App.Data;
 using DevIO2.App.ViewModels;
 using DevIO.Business.Interfaces;
 using AutoMapper;
+using DevIO.Business.Models;
 
 namespace DevIO2.App.Controllers
 {
@@ -34,112 +35,73 @@ namespace DevIO2.App.Controllers
 
         public async Task<IActionResult> Details(Guid id)
         {
-
-            var produtoViewModel = await _context.ProdutoViewModel
-                .Include(p => p.Fornecedor)
-                .FirstOrDefaultAsync(m => m.Id == id);
+            var produtoViewModel = await ObterProdutoFornecedor(id);
 
             if (produtoViewModel == null) return NotFound();
 
             return View(produtoViewModel);
         }
 
-        public IActionResult Create()
+        public async Task<ActionResult> Create()
         {
-            ViewData["FornecedorId"] = new SelectList(_context.Set<FornecedorViewModel>(), "Id", "Documento");
-            return View();
-        }
+            var produtoViewModel = await PopularFornecedores(new ProdutoViewModel());
 
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,FornecedorId,Nome,Descricao,Imagem,Valor,Ativo")] ProdutoViewModel produtoViewModel)
-        {
-            if (ModelState.IsValid)
-            {
-                produtoViewModel.Id = Guid.NewGuid();
-                _context.Add(produtoViewModel);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
-            }
-            ViewData["FornecedorId"] = new SelectList(_context.Set<FornecedorViewModel>(), "Id", "Documento", produtoViewModel.FornecedorId);
-            return View(produtoViewModel);
-        }
-
-        public async Task<IActionResult> Edit(Guid? id)
-        {
-            if (id == null)
-            {
-                return NotFound();
-            }
-
-            var produtoViewModel = await _context.ProdutoViewModel.FindAsync(id);
-            if (produtoViewModel == null)
-            {
-                return NotFound();
-            }
-            ViewData["FornecedorId"] = new SelectList(_context.Set<FornecedorViewModel>(), "Id", "Documento", produtoViewModel.FornecedorId);
             return View(produtoViewModel);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(Guid id, [Bind("Id,FornecedorId,Nome,Descricao,Imagem,Valor,Ativo")] ProdutoViewModel produtoViewModel)
+        public async Task<IActionResult> Create(ProdutoViewModel produtoViewModel)
         {
-            if (id != produtoViewModel.Id)
-            {
-                return NotFound();
-            }
+            produtoViewModel = await PopularFornecedores(produtoViewModel);
+            if (!ModelState.IsValid) return View(produtoViewModel);
 
-            if (ModelState.IsValid)
-            {
-                try
-                {
-                    _context.Update(produtoViewModel);
-                    await _context.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (!ProdutoViewModelExists(produtoViewModel.Id))
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
-                return RedirectToAction(nameof(Index));
-            }
-            ViewData["FornecedorId"] = new SelectList(_context.Set<FornecedorViewModel>(), "Id", "Documento", produtoViewModel.FornecedorId);
+            await _produtoRepository.Adicionar(_mapper.Map<Produto>(produtoViewModel));
+
+            return View("Index");
+        }
+
+        public async Task<IActionResult> Edit(Guid id)
+        {
+            var produtoViewModel = await ObterProdutoFornecedor(id);
+            if (produtoViewModel == null) return NotFound();
+
+
             return View(produtoViewModel);
         }
 
-        public async Task<IActionResult> Delete(Guid? id)
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Edit(Guid id, ProdutoViewModel produtoViewModel)
         {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            if (id != produtoViewModel.Id) return NotFound();
 
-            var produtoViewModel = await _context.ProdutoViewModel
-                .Include(p => p.Fornecedor)
-                .FirstOrDefaultAsync(m => m.Id == id);
-            if (produtoViewModel == null)
-            {
-                return NotFound();
-            }
+            if (!ModelState.IsValid) return View(produtoViewModel);
 
-            return View(produtoViewModel);
+            await _produtoRepository.Atualizar(_mapper.Map<Produto>(produtoViewModel));
+
+            return RedirectToAction("Index");
+        }
+
+        public async Task<IActionResult> Delete(Guid id)
+        {
+            var produto = ObterProdutoFornecedor(id);
+            if (produto == null) return NotFound();
+
+            return View(produto);
         }
 
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(Guid id)
         {
-            var produtoViewModel = await _context.ProdutoViewModel.FindAsync(id);
-            _context.ProdutoViewModel.Remove(produtoViewModel);
-            await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
+            var produto = ObterProdutoFornecedor(id);
+
+            if (produto == null) return NotFound();
+
+            await _produtoRepository.Remover(id);
+
+            return RedirectToAction("Index");
         }
 
 
@@ -147,6 +109,13 @@ namespace DevIO2.App.Controllers
         private async Task<ProdutoViewModel> ObterProdutoFornecedor(Guid id)
         {
             var produto = _mapper.Map<ProdutoViewModel>(await _produtoRepository.ObterProdutoFornecedor(id));
+            produto.Fornecedores = _mapper.Map<IEnumerable<FornecedorViewModel>>(await _fornecedorRepository.ObterTodos());
+
+            return produto;
+        }
+
+        private async Task<ProdutoViewModel> PopularFornecedores(ProdutoViewModel produto)
+        {
             produto.Fornecedores = _mapper.Map<IEnumerable<FornecedorViewModel>>(await _fornecedorRepository.ObterTodos());
 
             return produto;
