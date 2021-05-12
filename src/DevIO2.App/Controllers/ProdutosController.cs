@@ -106,6 +106,7 @@ namespace DevIO2.App.Controllers
             produtoAtualizacao.Descricao = produtoViewModel.Descricao;
             produtoAtualizacao.Valor = produtoViewModel.Valor;
             produtoAtualizacao.Ativo = produtoViewModel.Ativo;
+            produtoAtualizacao.ImagemUpload = produtoViewModel.ImagemUpload;
 
             await _produtoRepository.Atualizar(_mapper.Map<Produto>(produtoAtualizacao));
 
